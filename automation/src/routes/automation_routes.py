@@ -18,12 +18,10 @@ from src.types import (
     RunAutomationRequest,
     AutomationJobResponse,
     JobStatus,
-    CheckPaymentRequest,
     CheckPaymentResponse,
 )
 from src.services.session_service import session_service
 from src.services.browser_service import browser_service
-from src.services.credential_service import credential_service
 from src.scripts import get_automation
 
 router = APIRouter(prefix="/api/automation", tags=["automation"])
@@ -35,18 +33,9 @@ router = APIRouter(prefix="/api/automation", tags=["automation"])
 def run_automation(body: RunAutomationRequest) -> AutomationJobResponse:
     """
     Uruchomia automatyzację w tle.
+    Dane logowania przekazywane wyłącznie w body – nie są nigdzie zapisywane.
     Zwraca job_id do śledzenia statusu.
     """
-    # Sprawdź czy mamy dane logowania
-    if not credential_service.has_credentials(body.service_key):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Brak zaszyfrowanych danych logowania dla serwisu '{body.service_key}'. "
-                f"Najpierw zapisz dane przez POST /api/credentials."
-            ),
-        )
-
     # Utwórz job
     job = session_service.create_job(
         subscription_id=body.subscription_id,
@@ -56,9 +45,10 @@ def run_automation(body: RunAutomationRequest) -> AutomationJobResponse:
     )
 
     # Uruchom automatyzację w osobnym wątku (nie blokuje HTTP)
+    # email i password żyją wyłącznie w RAM przez czas trwania wątku
     thread = threading.Thread(
         target=_run_automation_thread,
-        args=(job.job_id, body.service_key, body.action),
+        args=(job.job_id, body.service_key, body.action, body.email, body.password),
         daemon=True,
         name=f"automation-{job.job_id[:8]}",
     )
@@ -159,66 +149,11 @@ def list_jobs():
     }
 
 
-# ─── Sprawdzanie płatności ─────────────────────────────────────────────────────
-
-@router.post("/check-payment", response_model=CheckPaymentResponse)
-def check_payment_status(body: CheckPaymentRequest) -> CheckPaymentResponse:
-    """
-    Synchronicznie loguje się do serwisu i sprawdza czy płatność za dany cykl przeszła.
-    Heurystyka: aktywna subskrypcja po terminie płatności = płatność przetworzona.
-    Może zająć 30–60 sekund (Selenium).
-    """
-    if not credential_service.has_credentials(body.service_key):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Brak danych logowania dla serwisu '{body.service_key}'. "
-                   f"Zapisz je przez POST /api/credentials.",
-        )
-
-    job_id = f"check-{body.subscription_id}"
-    driver = None
-    try:
-        creds = credential_service.load(body.service_key)
-        if not creds:
-            raise HTTPException(status_code=500, detail="Błąd odczytu danych logowania.")
-        email, password = creds
-
-        driver = browser_service.create_driver(job_id)
-        automation = get_automation(body.service_key)
-        result = automation.check(
-            driver=driver,
-            email=email,
-            password=password,
-            expected_amount=body.expected_amount,
-            expected_date=body.expected_date,
-        )
-
-        return CheckPaymentResponse(
-            subscription_id=body.subscription_id,
-            payment_found=result["payment_found"],
-            payment_date=result.get("payment_date"),
-            amount_found=result.get("amount_found"),
-            message=result["message"],
-        )
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        return CheckPaymentResponse(
-            subscription_id=body.subscription_id,
-            payment_found=False,
-            message=f"Błąd podczas sprawdzania płatności: {exc}",
-        )
-    finally:
-        if driver:
-            browser_service.close_driver(job_id)
-
-
 # ─── Wewnętrzna funkcja wątku ─────────────────────────────────────────────────
-def _run_automation_thread(job_id: str, service_key: str, action) -> None:
+def _run_automation_thread(job_id: str, service_key: str, action, email: str, password: str) -> None:
     """
     Wykonuje automatyzację w osobnym wątku.
-    Zarządza cyklem życia przeglądarki i joba.
+    email i password żyją wyłącznie w RAM – nie są zapisywane nigdzie po zakończeniu.
     """
     job = session_service.get_job(job_id)
     if not job:
@@ -226,19 +161,7 @@ def _run_automation_thread(job_id: str, service_key: str, action) -> None:
 
     driver = None
     try:
-        # Pobierz dane logowania
-        creds = credential_service.load(service_key)
-        if not creds:
-            job.set_error("Błąd odczytu zaszyfrowanych danych logowania.")
-            job.update(status=JobStatus.FAILED, message="Błąd danych logowania.")
-            return
-
-        email, password = creds
-
-        # Utwórz przeglądarkę
         driver = browser_service.create_driver(job_id)
-
-        # Pobierz automatyzator i uruchom
         automation = get_automation(service_key)
         automation.run(driver=driver, email=email, password=password, action=action, job=job)
 
@@ -247,6 +170,9 @@ def _run_automation_thread(job_id: str, service_key: str, action) -> None:
             job.set_error(str(exc))
             job.update(status=JobStatus.FAILED, message=f"Błąd krytyczny: {str(exc)}")
     finally:
+        # Wyczyść referencje do danych logowania z ramki stosu
+        email = ""
+        password = ""
         if driver:
             browser_service.close_driver(job_id)
         session_service.cleanup_finished()

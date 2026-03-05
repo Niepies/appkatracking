@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from src.middleware import ApiKeyMiddleware
-from src.routes import automation_router, credential_router
+from src.routes import automation_router
 
 # ─── Aplikacja ────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,6 @@ app.add_middleware(ApiKeyMiddleware)
 
 # ── Routery ───────────────────────────────────────────────────────────────────
 app.include_router(automation_router)
-app.include_router(credential_router)
 
 
 # ─── Endpointy publiczne ──────────────────────────────────────────────────────

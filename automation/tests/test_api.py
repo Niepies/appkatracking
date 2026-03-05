@@ -46,74 +46,41 @@ class TestApiKeyAuth:
 
 # ─── Credentials ──────────────────────────────────────────────────────────────
 
-class TestCredentials:
-    def test_save_credential(self):
-        response = client.post(
-            "/api/credentials",
-            json={"service_key": "test-service", "email": "user@test.com", "password": "s3cur3!"},
-            headers=HEADERS,
-        )
-        assert response.status_code == 200
-        assert "test-service" in response.json()["message"]
-
-    def test_check_credential_exists(self):
-        # Zapisz najpierw
-        client.post(
-            "/api/credentials",
-            json={"service_key": "check-service", "email": "a@b.com", "password": "pw"},
-            headers=HEADERS,
-        )
-        response = client.get("/api/credentials/check-service", headers=HEADERS)
-        assert response.status_code == 200
-        assert response.json()["has_credentials"] is True
-
-    def test_check_credential_not_exists(self):
-        response = client.get("/api/credentials/nonexistent-xyz", headers=HEADERS)
-        assert response.status_code == 200
-        assert response.json()["has_credentials"] is False
-
-    def test_delete_credential(self):
-        # Zapisz
-        client.post(
-            "/api/credentials",
-            json={"service_key": "del-service", "email": "x@y.com", "password": "p"},
-            headers=HEADERS,
-        )
-        # Usuń
-        response = client.delete("/api/credentials/del-service", headers=HEADERS)
-        assert response.status_code == 200
-        # Sprawdź że nie ma
-        check = client.get("/api/credentials/del-service", headers=HEADERS)
-        assert check.json()["has_credentials"] is False
-
-    def test_delete_nonexistent_returns_404(self):
-        response = client.delete("/api/credentials/ghost-service", headers=HEADERS)
-        assert response.status_code == 404
-
-    def test_invalid_service_key_rejected(self):
-        response = client.post(
-            "/api/credentials",
-            json={"service_key": "INVALID KEY!", "email": "a@b.com", "password": "p"},
-            headers=HEADERS,
-        )
-        assert response.status_code == 422  # Walidacja Pydantic
-
+# ─── Credentials endpointy zostały usunięte – dane logowania nie są przechowywane
+# Testy poniżej dotyczą tylko endpointów automatyzacji.
 
 # ─── Automation API ───────────────────────────────────────────────────────────
 
 class TestAutomationApi:
-    def test_run_without_credentials_returns_400(self):
+    def test_run_without_credentials_is_accepted(self):
+        """POST /run z email/password w body powinien zwrócić 202 i job_id."""
         response = client.post(
             "/api/automation/run",
             json={
                 "subscription_id": "sub-123",
-                "service_key": "no-creds-service",
+                "service_key": "netflix",
+                "action": "cancel",
+                "email": "test@example.com",
+                "password": "testpass",
+            },
+            headers=HEADERS,
+        )
+        # 202 – automatyzacja uruchomiona w tle
+        assert response.status_code == 202
+        assert "job_id" in response.json()
+
+    def test_run_missing_email_returns_422(self):
+        """Body bez email/password powinno zwrócić 422 (walidacja Pydantic)."""
+        response = client.post(
+            "/api/automation/run",
+            json={
+                "subscription_id": "sub-123",
+                "service_key": "netflix",
                 "action": "cancel",
             },
             headers=HEADERS,
         )
-        assert response.status_code == 400
-        assert "Brak zaszyfrowanych danych" in response.json()["detail"]
+        assert response.status_code == 422
 
     def test_status_unknown_job_returns_404(self):
         response = client.get(
@@ -133,35 +100,3 @@ class TestAutomationApi:
         response = client.get("/api/automation/jobs", headers=HEADERS)
         assert response.status_code == 200
         assert "jobs" in response.json()
-
-
-# ─── Credential Service unit tests ────────────────────────────────────────────
-
-class TestCredentialServiceEncryption:
-    def test_encryption_roundtrip(self):
-        from src.services.credential_service import CredentialService
-        from cryptography.fernet import Fernet
-
-        # Tworzony tymczasowy service z nowym kluczem
-        settings.encryption_key = Fernet.generate_key().decode()
-        svc = CredentialService()
-
-        svc.save("roundtrip-svc", "user@example.com", "supersecret")
-        result = svc.load("roundtrip-svc")
-
-        assert result is not None
-        assert result[0] == "user@example.com"
-        assert result[1] == "supersecret"
-
-    def test_credentials_not_stored_in_plaintext(self):
-        from src.services.credential_service import CredentialService
-        from cryptography.fernet import Fernet
-
-        settings.encryption_key = Fernet.generate_key().decode()
-        svc = CredentialService()
-        svc.save("plain-test", "secret@mail.com", "mypassword123")
-
-        # Sprawdź surowe dane w cache – powinny być zaszyfrowane
-        raw = svc._cache.get("plain-test", {})
-        assert "secret@mail.com" not in raw.get("email_enc", "")
-        assert "mypassword123" not in raw.get("password_enc", "")

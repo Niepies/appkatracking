@@ -22,8 +22,8 @@ interface UseAutomationOptions {
 interface UseAutomationReturn {
   job: AutomationJobResponse | null;
   is_loading: boolean;
-  is_available: boolean | null;  // null = sprawdzanie, true/false = wynik
-  run: (subscription_id: string, service_key: string, action: AutomationAction) => Promise<void>;
+  is_available: boolean | null;
+  run: (subscription_id: string, service_key: string, action: AutomationAction, email: string, password: string) => Promise<void>;
   continue_after_captcha: () => Promise<void>;
   reset: () => void;
   check_availability: () => Promise<boolean>;
@@ -96,7 +96,9 @@ export function use_automation(options: UseAutomationOptions = {}): UseAutomatio
     async (
       subscription_id: string,
       service_key: string,
-      action: AutomationAction
+      action: AutomationAction,
+      email: string,
+      password: string,
     ): Promise<void> => {
       set_is_loading(true);
       set_job(null);
@@ -105,7 +107,7 @@ export function use_automation(options: UseAutomationOptions = {}): UseAutomatio
         const res = await fetch("/api/automation/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subscription_id, service_key, action }),
+          body: JSON.stringify({ subscription_id, service_key, action, email, password }),
         });
 
         if (!res.ok) {
@@ -173,3 +175,5 @@ export function use_automation(options: UseAutomationOptions = {}): UseAutomatio
     check_availability,
   };
 }
+
+export type { UseAutomationReturn };

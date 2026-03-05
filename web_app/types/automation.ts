@@ -18,36 +18,12 @@ export interface AutomationJobResponse {
   error?: string | null;
 }
 
-export interface CredentialStatusResponse {
-  service_key: string;
-  has_credentials: boolean;
-}
-
-export interface SaveCredentialPayload {
-  service_key: string;
-  email: string;
-  password: string;
-}
-
 export interface RunAutomationPayload {
   subscription_id: string;
   service_key: string;
   action: AutomationAction;
-}
-
-export interface CheckPaymentPayload {
-  subscription_id: string;
-  service_key: string;
-  expected_amount: number;
-  expected_date: string; // yyyy-MM-dd
-}
-
-export interface CheckPaymentResult {
-  subscription_id: string;
-  payment_found: boolean;
-  payment_date?: string | null;
-  amount_found?: number | null;
-  message: string;
+  email: string;
+  password: string;
 }
 
 /** Konfiguracja klienta API automatyzacji */

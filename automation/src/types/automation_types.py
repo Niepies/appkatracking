@@ -25,25 +25,10 @@ class JobStatus(str, Enum):
 
 # ─── Requesty ─────────────────────────────────────────────────────────────────
 
-class SaveCredentialRequest(BaseModel):
-    """Zapis zaszyfrowanych danych logowania dla danego serwisu."""
-    service_key: str = Field(
-        ...,
-        min_length=1,
-        max_length=64,
-        pattern=r"^[a-z0-9_\-]+$",
-        description="Klucz serwisu, np. 'netflix', 'spotify'",
-    )
-    email: str = Field(..., min_length=3, max_length=254)
-    password: str = Field(..., min_length=1, max_length=256)
-
-
-class DeleteCredentialRequest(BaseModel):
-    service_key: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-z0-9_\-]+$")
-
-
 class RunAutomationRequest(BaseModel):
-    """Uruchomienie automatyzacji dla subskrypcji."""
+    """Uruchomienie automatyzacji dla subskrypcji.
+    Dane logowania przekazywane wyłącznie w body requestu – nigdy nie są zapisywane.
+    """
     subscription_id: str = Field(..., min_length=1, max_length=64)
     service_key: str = Field(
         ...,
@@ -54,6 +39,8 @@ class RunAutomationRequest(BaseModel):
                     "Jeśli nie ma dedykowanego skryptu, użyty zostanie 'generic'.",
     )
     action: AutomationAction
+    email: str = Field(..., min_length=3, max_length=254, description="Login/e-mail użytkownika")
+    password: str = Field(..., min_length=1, max_length=256, description="Hasło użytkownika")
     initiated_by: str = Field(default="user", max_length=64)
 
 
@@ -72,28 +59,6 @@ class AutomationJobResponse(BaseModel):
     screenshot_url: Optional[str] = None      # np. /api/automation/screenshot/{job_id}
     result: Optional[str] = None               # Wynik końcowy (tekst)
     error: Optional[str] = None
-
-
-class CredentialStatusResponse(BaseModel):
-    service_key: str
-    has_credentials: bool
-
-
-class CheckPaymentRequest(BaseModel):
-    """Sprawdzenie statusu płatności dla danego cyklu subskrypcji."""
-
-    subscription_id: str = Field(..., min_length=1, max_length=64)
-    service_key: str = Field(
-        ...,
-        min_length=1,
-        max_length=64,
-        pattern=r"^[a-z0-9_\-]+$",
-    )
-    expected_amount: float = Field(..., gt=0, description="Oczekiwana kwota płatności")
-    expected_date: str = Field(
-        ...,
-        description="Oczekiwana data płatności w formacie yyyy-MM-dd",
-    )
 
 
 class CheckPaymentResponse(BaseModel):

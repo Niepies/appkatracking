@@ -23,13 +23,11 @@ import {
   cn,
 } from "@/lib/utils";
 import { use_subscription_store } from "@/store/subscription-store";
-import { use_credential_check } from "@/hooks/use-credential-check";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ChevronRight, Power, ExternalLink, LogIn, ShieldAlert } from "lucide-react";
+import { CheckCircle2, ChevronRight, Power, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { get_service_urls } from "@/lib/service-urls";
-import type { CheckPaymentResult } from "@/types/automation";
 
 interface SubscriptionCardProps {
   subscription: Subscription;
@@ -40,21 +38,6 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
   const { mark_as_paid, toggle_active } = use_subscription_store.getState();
   const [is_paying, set_is_paying] = useState(false);
   const service_urls = get_service_urls(subscription.name);
-  const { has_credentials } = use_credential_check(subscription.name);
-
-  /** Otwiera stronę logowania serwisu w nowej karcie */
-  const redirect_to_login = (e: React.MouseEvent, action: string) => {
-    e.stopPropagation();
-    window.open(service_urls.manage_url, "_blank", "noopener,noreferrer");
-    toast.warning(
-      `Zaloguj się do ${service_urls.display}, aby ${action} automatycznie.`,
-      {
-        description: "Zapisz dane logowania w ustawieniach subskrypcji, a przyciski zadziałają automatycznie.",
-        duration: 5000,
-        icon: <LogIn className="h-4 w-4" />,
-      }
-    );
-  };
 
   const handle_manage = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,91 +64,20 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
   // Kolor akcentu z danych subskrypcji lub domyślny niebieski
   const accent_color = subscription.color || "#3b82f6";
 
-  const handle_pay = async (e: React.MouseEvent) => {
+  const handle_pay = (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // Brak danych logowania → przekieruj na login serwisu
-    if (has_credentials === false) {
-      redirect_to_login(e, "sprawdzić płatność");
-      return;
-    }
-
     set_is_paying(true);
-
-    // Mamy dane logowania → weryfikuj przez Selenium
-    if (has_credentials === true) {
-      try {
-        const next_payment = get_next_payment_date(subscription) ?? "";
-        const service_key  = normalize_service_key(subscription.name);
-        const res = await fetch("/api/automation/check-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subscription_id: subscription.id,
-            service_key,
-            expected_amount: subscription.amount,
-            expected_date: next_payment,
-          }),
-          signal: AbortSignal.timeout(90_000),
-        });
-
-        if (res.ok) {
-          const result: CheckPaymentResult = await res.json();
-          if (result.payment_found) {
-            mark_as_paid(subscription.id);
-            toast.success(
-              `${subscription.name} oznaczono jako opłacone! ✓`,
-              { description: result.message }
-            );
-          } else {
-            toast.warning(
-              `Nie wykryto płatności dla ${subscription.name}`,
-              {
-                description: result.message,
-                action: {
-                  label: "Oznacz ręcznie",
-                  onClick: () => {
-                    mark_as_paid(subscription.id);
-                    toast.success("Oznaczono ręcznie.");
-                  },
-                },
-                duration: 8000,
-              }
-            );
-          }
-        } else {
-          throw new Error("Błąd API");
-        }
-      } catch {
-        // Fallback: lokalne oznaczenie
-        mark_as_paid(subscription.id);
-        toast.success(`${subscription.name} oznaczone jako opłacone (lokalnie).`);
-      } finally {
-        set_is_paying(false);
-      }
-      return;
-    }
-
-    // API niedostępne (has_credentials === null) → lokalny fallback
     setTimeout(() => {
       mark_as_paid(subscription.id);
       set_is_paying(false);
       toast.success(`${subscription.name} oznaczone jako opłacone! ✓`, {
         description: "Następna płatność obliczona automatycznie.",
       });
-    }, 600);
+    }, 400);
   };
 
   const handle_toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // Brak danych logowania → przekieruj na login serwisu
-    if (has_credentials === false) {
-      const action = subscription.is_active ? "wyłączyć (anulować)" : "włączyć (wznowić)";
-      redirect_to_login(e, action);
-      return;
-    }
-
     toggle_active(subscription.id);
     toast.info(
       subscription.is_active

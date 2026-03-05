@@ -58,7 +58,6 @@ export function AutomationModal({
   const [email, set_email] = useState("");
   const [password, set_password] = useState("");
   const [show_password, set_show_password] = useState(false);
-  const [saving_creds, set_saving_creds] = useState(false);
   const [screenshot_url, set_screenshot_url] = useState<string | null>(null);
   const [result_message, set_result_message] = useState("");
 
@@ -100,43 +99,23 @@ export function AutomationModal({
     on_close();
   };
 
-  const handle_save_and_run = async () => {
+  // alias dla czytelności JSX
+  const handle_save_and_run = handle_run;
+
+  const handle_run = async () => {
     if (!email.trim() || !password.trim()) {
       toast.error("Podaj e-mail i hasło.");
       return;
     }
 
-    set_saving_creds(true);
-    try {
-      // Zapisz zaszyfrowane dane logowania przez proxy w Next.js
-      const res = await fetch("/api/credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          service_key: service_key.toLowerCase().replace(/\s+/g, ""),
-          email: email.trim(),
-          password,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err?.error ?? "Błąd zapisu danych logowania.");
-        return;
-      }
-    } catch {
-      toast.error("Nie można połączyć się z serwisem automatyzacji.");
-      return;
-    } finally {
-      set_saving_creds(false);
-    }
-
-    // Uruchom automatyzację
     set_step("running");
+    // Dane logowania trafiają tylko do body żądania HTTP – nie są nigdzie zapisywane
     await run(
       subscription_id,
       service_key.toLowerCase().replace(/\s+/g, ""),
-      action
+      action,
+      email.trim(),
+      password,
     );
   };
 
@@ -162,9 +141,9 @@ export function AutomationModal({
             <div className="flex items-start gap-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-3 text-sm text-blue-700 dark:text-blue-300">
               <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5" />
               <p>
-                Dane logowania są <strong>szyfrowane (AES-256)</strong> i przechowywane
-                lokalnie tylko po Twojej stronie. Nigdy nie trafiają do żadnego zewnętrznego
-                serwisu – służą wyłącznie do automatyzacji przez Twoją przeglądarkę.
+                Dane logowania <strong>nie są nigdzie zapisywane</strong>. Są używane
+                jednorazowo do zalogowania się i wykonania akcji, po czym są trwale usuwane
+                z pamięci.
               </p>
             </div>
 
@@ -234,14 +213,10 @@ export function AutomationModal({
               </Button>
               <Button
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={handle_save_and_run}
-                disabled={saving_creds || !email || !password}
+                onClick={handle_run}
+                disabled={is_loading || !email || !password}
               >
-                {saving_creds ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Zapisuję…</>
-                ) : (
-                  <><Bot className="h-4 w-4 mr-2" /> {action_label} automatycznie</>
-                )}
+                <Bot className="h-4 w-4 mr-2" /> {action_label} automatycznie
               </Button>
             </div>
           </div>

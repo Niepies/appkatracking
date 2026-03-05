@@ -56,9 +56,6 @@ import {
 import { toast } from "sonner";
 import { get_service_urls } from "@/lib/service-urls";
 import { AutomationButton } from "@/components/automation/automation-button";
-import { use_credential_check } from "@/hooks/use-credential-check";
-import { normalize_service_key } from "@/lib/utils";
-import type { CheckPaymentResult } from "@/types/automation";
 
 interface SubscriptionDetailModalProps {
   subscription: Subscription | null;
@@ -78,8 +75,6 @@ export function SubscriptionDetailModal({
   const [is_paying, set_is_paying] = useState(false);
   const [show_history, set_show_history] = useState(false);
 
-  const { has_credentials } = use_credential_check(subscription?.name ?? "");
-
   if (!subscription) return null;
 
   const payment_history = get_history_for ? get_history_for(subscription.id) : [];
@@ -94,74 +89,16 @@ export function SubscriptionDetailModal({
   const days        = days_until_payment(next_payment);
   const accent_color = subscription.color || "#3b82f6";
 
-  const handle_pay = async () => {
-    // Brak danych logowania → przekieruj na login serwisu
-    if (has_credentials === false) {
-      window.open(service_urls.manage_url, "_blank", "noopener,noreferrer");
-      toast.warning(
-        `Zaloguj się do ${service_urls.display}, aby sprawdzić płatność automatycznie.`,
-        {
-          description: "Zapisz dane logowania, aby przyciski działały automatycznie.",
-          duration: 5000,
-          icon: <LogIn className="h-4 w-4" />,
-        }
-      );
-      return;
-    }
-
+  const handle_pay = () => {
     set_is_paying(true);
-
-    // Mamy dane logowania → weryfikuj przez Selenium
-    if (has_credentials === true) {
-      try {
-        const service_key = normalize_service_key(subscription.name);
-        const res = await fetch("/api/automation/check-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subscription_id: subscription.id,
-            service_key,
-            expected_amount: subscription.amount,
-            expected_date: next_payment,
-          }),
-          signal: AbortSignal.timeout(90_000),
-        });
-        if (res.ok) {
-          const result: CheckPaymentResult = await res.json();
-          if (result.payment_found) {
-            mark_as_paid(subscription.id);
-            toast.success("Subskrypcja oznaczona jako opłacona! ✓", { description: result.message });
-            on_close();
-          } else {
-            toast.warning(`Nie wykryto płatności`, {
-              description: result.message,
-              action: {
-                label: "Oznacz ręcznie",
-                onClick: () => { mark_as_paid(subscription.id); toast.success("Oznaczono ręcznie."); on_close(); },
-              },
-              duration: 8000,
-            });
-          }
-        } else {
-          throw new Error("Błąd API");
-        }
-      } catch {
-        mark_as_paid(subscription.id);
-        toast.success("Subskrypcja oznaczona jako opłacona (lokalnie).");
-        on_close();
-      } finally {
-        set_is_paying(false);
-      }
-      return;
-    }
-
-    // API niedostępne → lokalny fallback
     setTimeout(() => {
       mark_as_paid(subscription.id);
       set_is_paying(false);
-      toast.success("Subskrypcja oznaczona jako opłacona! ✓");
+      toast.success("Subskrypcja oznaczona jako opłacona! ✓", {
+        description: "Następna płatność obliczona automatycznie.",
+      });
       on_close();
-    }, 700);
+    }, 400);
   };
 
   const handle_delete = () => {
@@ -193,11 +130,9 @@ export function SubscriptionDetailModal({
   };
 
   const handle_toggle = () => {
-    // Brak danych logowania → przekieruj na login serwisu
-    if (has_credentials === false) {
-      window.open(service_urls.manage_url, "_blank", "noopener,noreferrer");
+    if (false) {
+      // placeholder – zachowane dla struktury
       toast.warning(
-        `Zaloguj się do ${service_urls.display}, aby zarządzać subskrypcją automatycznie.`,
         {
           description: "Zapisz dane logowania w ustawieniach → przyciski zadziałają automatycznie.",
           duration: 5000,

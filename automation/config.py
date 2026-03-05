@@ -15,10 +15,8 @@ class Settings(BaseSettings):
 
     # Bezpieczeństwo
     automation_api_key: str = "dev-insecure-key-change-in-production"
-    encryption_key: str = ""  # Fernet key (base64url, 32 bajty) – wymagany w produkcji
 
     # Pliki danych
-    credentials_file: Path = Path("./data/credentials.enc")
     audit_log_file: Path = Path("./data/audit.log")
 
     # Przeglądarka
@@ -31,7 +29,6 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     def ensure_data_dirs(self) -> None:
-        self.credentials_file.parent.mkdir(parents=True, exist_ok=True)
         self.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
 
 
