@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* Tryb ciemny – class-based (klasa `dark` na <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+}
+
+.dark {
+  --background: #030712;
+  --foreground: #f9fafb;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ukrycie scrollbara na filtrach */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animacje dla dialogów */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes zoom-in-95 {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes zoom-out-95 {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -48%) scale(0.95); }
+}
+
+.animate-in { animation-fill-mode: forwards; }
+.animate-out { animation-fill-mode: forwards; }
+.fade-in-0 { animation-name: fade-in; animation-duration: 150ms; }
+.fade-out-0 { animation-name: fade-out; animation-duration: 150ms; }
+.zoom-in-95 { animation-name: zoom-in-95; animation-duration: 150ms; }
+.zoom-out-95 { animation-name: zoom-out-95; animation-duration: 150ms; }
+
+/* Slide animations dla dialogów */
+.slide-in-from-left-1\/2 { animation-name: zoom-in-95; animation-duration: 150ms; }
+.slide-in-from-top-\[48\%\] { animation-name: zoom-in-95; animation-duration: 150ms; }
+.slide-out-to-left-1\/2 { animation-name: zoom-out-95; animation-duration: 150ms; }
+.slide-out-to-top-\[48\%\] { animation-name: zoom-out-95; animation-duration: 150ms; }

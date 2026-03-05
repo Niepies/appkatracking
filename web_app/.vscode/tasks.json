@@ -1,0 +1,31 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "SubsControl: Dev Server",
+			"type": "shell",
+			"command": "npm",
+			"args": ["run", "dev"],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": { "kind": "build", "isDefault": true },
+			"presentation": { "reveal": "always", "panel": "new" }
+		},
+		{
+			"label": "SubsControl: Build (Production)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["run", "build"],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "SubsControl: TypeScript Check",
+			"type": "shell",
+			"command": "npx",
+			"args": ["tsc", "--noEmit"],
+			"group": "test",
+			"problemMatcher": ["$tsc"]
+		}
+	]
+}

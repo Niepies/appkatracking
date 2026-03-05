@@ -1,0 +1,21 @@
+# Pliki danych runtime – NIE commituj
+data/
+data/*.enc
+data/*.log
+
+# Środowisko wirtualne Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Zmienne środowiskowe
+.env
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
