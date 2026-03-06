@@ -1,6 +1,6 @@
 // Typy TypeScript dla modułu automatyzacji
 
-export type AutomationAction = "cancel" | "resume";
+export type AutomationAction = "cancel" | "resume" | "scrape";
 
 export type JobStatus =
   | "pending"
@@ -24,6 +24,16 @@ export interface RunAutomationPayload {
   action: AutomationAction;
   email: string;
   password: string;
+}
+
+/** Dane rozliczeniowe pobrane automatycznie przez Selenium */
+export interface ScrapedBillingData {
+  plan_name?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  payment_cycle?: "monthly" | "yearly" | null;
+  next_payment_date?: string | null;  // ISO YYYY-MM-DD
+  raw_info?: string | null;
 }
 
 /** Konfiguracja klienta API automatyzacji */

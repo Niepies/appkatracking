@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/form-elements";
 import { format, parseISO } from "date-fns";
 import { pl } from "date-fns/locale";
-import { Sparkles, CalendarClock } from "lucide-react";
+import { Sparkles, CalendarClock, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SubscriptionFormProps {
@@ -112,11 +112,14 @@ export function SubscriptionForm({
       POPULAR_SERVICES.find((s) => s.name.toLowerCase() === data.name.toLowerCase())
         ?.color ?? undefined;
 
+    // amount i next_payment_date są opcjonalne – domyślnie 0 i następny miesiąc
+    const amount = data.amount ? Number(data.amount) : 0;
+
     if (is_edit_mode && subscription) {
       // Edycja: aktualizujemy tylko statyczne pola
       update_subscription(subscription.id, {
         name: data.name,
-        amount: Number(data.amount),
+        amount,
         currency: data.currency,
         payment_cycle: data.payment_cycle,
         category: data.category,
@@ -126,10 +129,10 @@ export function SubscriptionForm({
     } else {
       add_subscription({
         name: data.name,
-        amount: Number(data.amount),
+        amount,
         currency: data.currency,
         payment_cycle: data.payment_cycle,
-        next_payment_date: data.next_payment_date,
+        next_payment_date: data.next_payment_date || undefined,
         has_trial: data.has_trial,
         trial_end_date: data.trial_end_date,
         category: data.category,
@@ -207,10 +210,22 @@ export function SubscriptionForm({
         </div>
       </div>
 
+      {/* Baner: automatyczne pobieranie danych */}
+      {!is_edit_mode && (
+        <div className="flex items-start gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+          <RefreshCw className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <p>
+            <strong>Kwota i data są opcjonalne.</strong> Możesz je pominąć – po dodaniu subskrypcji
+            kliknij <strong>„Włącz i pobierz dane"</strong> na karcie, a Selenium zaloguje się
+            i pobierze dane rozliczeniowe automatycznie.
+          </p>
+        </div>
+      )}
+
       {/* Kwota, waluta i cykl */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="amount">Kwota *</Label>
+          <Label htmlFor="amount">Kwota <span className="text-gray-400 font-normal text-xs">(opcjonalne)</span></Label>
           <div className="flex gap-1.5">
             <Input
               id="amount"
@@ -264,7 +279,8 @@ export function SubscriptionForm({
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <CalendarClock className="h-3.5 w-3.5 text-blue-500" />
-            Który dzień miesiąca jest dniem rozliczenia? *
+            Który dzień miesiąca jest dniem rozliczenia?{" "}
+            <span className="text-gray-400 font-normal text-xs">(opcjonalne)</span>
           </Label>
 
           {/* Szybkie przyciski popularnych dni */}

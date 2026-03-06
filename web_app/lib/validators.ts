@@ -19,10 +19,11 @@ export const subscription_schema = z
 
     amount: z
       .string()
-      .min(1, "Kwota jest wymagana")
-      .refine((val) => !isNaN(Number(val)), "Kwota musi być liczbą")
-      .refine((val) => Number(val) > 0, "Kwota musi być większa od 0")
-      .refine((val) => Number(val) <= 100000, "Kwota wydaje się zbyt duża"),
+      .optional()
+      .default("")
+      .refine((val) => val === "" || !isNaN(Number(val)), "Kwota musi być liczbą")
+      .refine((val) => val === "" || Number(val) >= 0, "Kwota nie może być ujemna")
+      .refine((val) => val === "" || Number(val) <= 100000, "Kwota wydaje się zbyt duża"),
 
     currency: z.enum(CURRENCIES, { message: "Wybierz walutę" }),
 
@@ -32,8 +33,10 @@ export const subscription_schema = z
 
     next_payment_date: z
       .string()
-      .min(1, "Data następnej płatności jest wymagana")
+      .optional()
+      .default("")
       .refine((val) => {
+        if (!val) return true;
         const date = new Date(val);
         return !isNaN(date.getTime());
       }, "Nieprawidłowy format daty"),

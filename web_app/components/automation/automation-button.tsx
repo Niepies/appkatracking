@@ -106,14 +106,16 @@ export function AutomationButton({
         {action_label}
       </Button>
 
-      <AutomationModal
-        is_open={is_modal_open}
-        on_close={() => set_is_modal_open(false)}
-        subscription_id={subscription_id}
-        service_key={resolved_key}
-        service_name={service_name}
-        action={action}
-      />
+      {is_modal_open && (
+        <AutomationModal
+          is_open={is_modal_open}
+          on_close={() => set_is_modal_open(false)}
+          subscription_id={subscription_id}
+          service_key={resolved_key}
+          service_name={service_name}
+          action={action}
+        />
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+"use no memo";
 
 /**
  * Modal automatyzacji – zarządza danymi logowania i uruchamia automatyzację.

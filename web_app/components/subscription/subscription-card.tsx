@@ -25,9 +25,10 @@ import {
 import { use_subscription_store } from "@/store/subscription-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ChevronRight, Power, ExternalLink, LogIn, ShieldAlert } from "lucide-react";
+import { ChevronRight, Power, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { get_service_urls } from "@/lib/service-urls";
+import { ScrapeModal } from "@/components/automation/scrape-modal";
 
 interface SubscriptionCardProps {
   subscription: Subscription;
@@ -35,8 +36,8 @@ interface SubscriptionCardProps {
 }
 
 export function SubscriptionCard({ subscription, on_click }: SubscriptionCardProps) {
-  const { mark_as_paid, toggle_active } = use_subscription_store.getState();
-  const [is_paying, set_is_paying] = useState(false);
+  const { toggle_active } = use_subscription_store.getState();
+  const [is_scrape_open, set_is_scrape_open] = useState(false);
   const service_urls = get_service_urls(subscription.name);
 
   const handle_manage = (e: React.MouseEvent) => {
@@ -55,7 +56,6 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
   const is_trial_pending  = next_cycle?.is_trial ?? false;
   const trial_ends_soon   = is_trial_pending && next_payment ? is_trial_ending_soon(next_payment) : false;
 
-  const urgency     = get_payment_urgency_label(next_payment);
   const is_upcoming = is_payment_upcoming(next_payment);
   const is_soon     = is_payment_soon(next_payment);
   const is_overdue  = is_payment_overdue(next_payment);
@@ -64,33 +64,31 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
   // Kolor akcentu z danych subskrypcji lub domyślny niebieski
   const accent_color = subscription.color || "#3b82f6";
 
-  // Dane logowania: null = nieznany, true = ma, false = brak
-  // Feature niezaimplementowany – domyślnie null (ukrywa badge/przyciski logowania)
-  const has_credentials: boolean | null = null;
+  // Czy subskrypcja jeszcze nie ma danych billing (kwota = 0 lub brak cykli z kwotą > 0)
+  const has_no_billing_data = subscription.amount === 0 ||
+    !subscription.billing_cycles.some((c) => c.amount_charged > 0);
 
-  const handle_pay = (e: React.MouseEvent) => {
+  const service_key = normalize_service_key(subscription.name);
+
+  const handle_enable = (e: React.MouseEvent) => {
     e.stopPropagation();
-    set_is_paying(true);
-    setTimeout(() => {
-      mark_as_paid(subscription.id);
-      set_is_paying(false);
-      toast.success(`${subscription.name} oznaczone jako opłacone! ✓`, {
-        description: "Następna płatność obliczona automatycznie.",
-      });
-    }, 400);
+    // Przy włączaniu: jeśli brak danych billing → otwórz scrape modal
+    if (has_no_billing_data) {
+      set_is_scrape_open(true);
+    } else {
+      toggle_active(subscription.id);
+      toast.success(`${subscription.name} włączone`);
+    }
   };
 
-  const handle_toggle = (e: React.MouseEvent) => {
+  const handle_disable = (e: React.MouseEvent) => {
     e.stopPropagation();
     toggle_active(subscription.id);
-    toast.info(
-      subscription.is_active
-        ? `${subscription.name} wyłączone`
-        : `${subscription.name} włączone`
-    );
+    toast.info(`${subscription.name} wyłączone`);
   };
 
   return (
+    <>
     <div
       onClick={on_click}
       className={cn(
@@ -204,68 +202,70 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
 
         {/* Przyciski akcji */}
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50 dark:border-gray-700">
-          {/* Badge: brak połączenia z serwisem */}
-          {has_credentials === false && (
-            <span
-              title="Zapisz dane logowania, aby korzystać z automatyzacji"
-              className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-full px-2 py-0.5 mr-auto"
-            >
-              <ShieldAlert className="h-3 w-3" />
-              Niezalogowany
+
+          {/* Badge: brak danych billing – zachęta do auto-pobrania */}
+          {has_no_billing_data && !subscription.is_active && (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-full px-2 py-0.5 mr-auto">
+              <RefreshCw className="h-3 w-3" />
+              Pobierz dane auto
             </span>
           )}
 
-          {/* Opłać */}
+          {/* Synchronizuj dane (gdy jest aktywna lub ma dane) */}
           {subscription.is_active && (
             <Button
               size="sm"
-              variant={is_overdue ? "destructive" : is_upcoming ? "warning" : "outline"}
-              className="flex-1 gap-1"
-              onClick={handle_pay}
-              disabled={is_paying}
-              title={has_credentials === false ? `Zaloguj się do ${service_urls.display} aby sprawdzić płatność` : undefined}
+              variant="ghost"
+              className="gap-1.5 px-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+              onClick={(e) => { e.stopPropagation(); set_is_scrape_open(true); }}
+              title="Pobierz dane rozliczeniowe automatycznie (Selenium)"
             >
-              {is_paying ? (
-                <>
-                  <span className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
-                  Sprawdzam…
-                </>
-              ) : has_credentials === false ? (
-                <>
-                  <LogIn className="h-3.5 w-3.5" />
-                  Zaloguj się
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Opłać
-                </>
-              )}
+              <RefreshCw className="h-3.5 w-3.5" />
+              Synchronizuj
             </Button>
           )}
 
-          {/* Włącz / Wyłącz */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "gap-1.5 px-3",
-              subscription.is_active
-                ? "text-gray-500 hover:text-gray-700"
-                : "text-blue-500 hover:text-blue-700 font-medium"
-            )}
-            onClick={handle_toggle}
-            title={has_credentials === false ? `Zaloguj się do ${service_urls.display} aby zarządzać subskrypcją` : undefined}
-          >
-            {has_credentials === false ? (
-              <LogIn className="h-3.5 w-3.5" />
-            ) : (
+          {/* Włącz / Wyłącz – główny przycisk */}
+          {subscription.is_active ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 px-3 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              onClick={handle_disable}
+            >
               <Power className="h-3.5 w-3.5" />
-            )}
-            {subscription.is_active ? "Wyłącz" : "Włącz"}
-          </Button>
+              Wyłącz
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant={has_no_billing_data ? "default" : "outline"}
+              className={cn(
+                "gap-1.5 px-3 font-medium",
+                has_no_billing_data
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
+              )}
+              onClick={handle_enable}
+            >
+              <Power className="h-3.5 w-3.5" />
+              {has_no_billing_data ? "Włącz i pobierz dane" : "Włącz"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
+
+    {/* Scrape Modal – montowany tylko gdy otwarty */}
+    {is_scrape_open && (
+      <ScrapeModal
+        is_open={is_scrape_open}
+        on_close={() => set_is_scrape_open(false)}
+        subscription_id={subscription.id}
+        service_key={service_key}
+        service_name={subscription.name}
+      />
+    )}
+    </>
   );
 }

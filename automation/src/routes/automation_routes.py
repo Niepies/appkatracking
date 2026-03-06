@@ -45,7 +45,7 @@ def run_automation(body: RunAutomationRequest) -> AutomationJobResponse:
     )
 
     # Uruchom automatyzację w osobnym wątku (nie blokuje HTTP)
-    # email i password żyją wyłącznie w RAM przez czas trwania wątku
+    # email i password przekazywane tylko dla CANCEL/RESUME (SCRAPE = ręczny login przez użytkownika)
     thread = threading.Thread(
         target=_run_automation_thread,
         args=(job.job_id, body.service_key, body.action, body.email, body.password),
@@ -150,10 +150,17 @@ def list_jobs():
 
 
 # ─── Wewnętrzna funkcja wątku ─────────────────────────────────────────────────
-def _run_automation_thread(job_id: str, service_key: str, action, email: str, password: str) -> None:
+def _run_automation_thread(
+    job_id: str,
+    service_key: str,
+    action,
+    email: str | None,
+    password: str | None,
+) -> None:
     """
     Wykonuje automatyzację w osobnym wątku.
-    email i password żyją wyłącznie w RAM – nie są zapisywane nigdzie po zakończeniu.
+    email i password są None dla akcji SCRAPE (użytkownik loguje się ręcznie).
+    Dla CANCEL/RESUME przekazywane są w RAM i czyszczone po użyciu.
     """
     job = session_service.get_job(job_id)
     if not job:

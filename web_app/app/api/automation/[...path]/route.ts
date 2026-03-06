@@ -18,13 +18,6 @@ const AUTOMATION_URL = process.env.AUTOMATION_API_URL ?? "http://localhost:8001"
 const AUTOMATION_KEY = process.env.AUTOMATION_API_KEY ?? "";
 
 async function proxy(req: NextRequest, path: string): Promise<NextResponse> {
-  if (!AUTOMATION_KEY) {
-    return NextResponse.json(
-      { error: "Brak AUTOMATION_API_KEY w zmiennych środowiskowych serwera." },
-      { status: 503 }
-    );
-  }
-
   const upstream_url = `${AUTOMATION_URL}${path}${
     req.nextUrl.search ? req.nextUrl.search : ""
   }`;

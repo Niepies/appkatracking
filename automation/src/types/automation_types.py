@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 class AutomationAction(str, Enum):
     CANCEL = "cancel"
     RESUME = "resume"
+    SCRAPE = "scrape"   # Pobierz dane rozliczeniowe (plan, kwota, data płatności)
 
 
 class JobStatus(str, Enum):
@@ -39,8 +40,10 @@ class RunAutomationRequest(BaseModel):
                     "Jeśli nie ma dedykowanego skryptu, użyty zostanie 'generic'.",
     )
     action: AutomationAction
-    email: str = Field(..., min_length=3, max_length=254, description="Login/e-mail użytkownika")
-    password: str = Field(..., min_length=1, max_length=256, description="Hasło użytkownika")
+    # email i password są wymagane tylko dla CANCEL/RESUME.
+    # Dla SCRAPE użytkownik loguje się ręcznie w otwartej przeglądarce.
+    email: Optional[str] = Field(default=None, max_length=254, description="Login/e-mail – tylko CANCEL/RESUME")
+    password: Optional[str] = Field(default=None, max_length=256, description="Hasło – tylko CANCEL/RESUME")
     initiated_by: str = Field(default="user", max_length=64)
 
 
@@ -69,6 +72,17 @@ class CheckPaymentResponse(BaseModel):
     payment_date: Optional[str] = None   # ISO yyyy-MM-dd lub None
     amount_found: Optional[float] = None
     message: str
+
+
+class ScrapedBillingData(BaseModel):
+    """Dane rozliczeniowe pobrane automatycznie przez Selenium."""
+
+    plan_name: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None           # ISO kod np. "PLN", "USD"
+    payment_cycle: Optional[str] = None      # "monthly" | "yearly"
+    next_payment_date: Optional[str] = None  # ISO yyyy-MM-dd
+    raw_info: Optional[str] = None           # Surowy tekst ze strony (debug)
 
 
 class HealthResponse(BaseModel):

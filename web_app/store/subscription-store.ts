@@ -12,6 +12,7 @@ import {
   get_next_payment_date,
 } from "@/lib/utils";
 import type { Subscription, BillingCycle, PaymentHistoryEntry } from "@/types";
+import type { ScrapedBillingData } from "@/types/automation";
 
 const STORAGE_KEY  = "subscontrol-subscriptions";
 const HISTORY_KEY  = "subscontrol-payment-history";
@@ -131,7 +132,7 @@ interface SubscriptionStore {
   /** Dodaje nową subskrypcję z pierwszym cyklem rozliczeniowym */
   add_subscription: (
     data: Omit<Subscription, "id" | "created_at" | "is_active" | "billing_cycles"> & {
-      next_payment_date: string;
+      next_payment_date?: string;
       has_trial?: boolean;
       trial_end_date?: string;
     }
@@ -167,6 +168,13 @@ interface SubscriptionStore {
   /** Oznacza wybrany cykl jako nieudaną płatność */
   mark_cycle_failed: (subscription_id: string, cycle_id: string) => void;
 
+  /**
+   * Aktualizuje subskrypcję danymi pobranymi przez Selenium scraping.
+   * Zastępuje kwotę, walutę, cykl i ustawia nowy cykl rozliczeniowy.
+   * Automatycznie włącza subskrypcję (is_active = true).
+   */
+  update_from_scrape: (id: string, data: ScrapedBillingData) => void;
+
   /** Zwraca subskrypcję po ID */
   get_subscription_by_id: (id: string) => Subscription | undefined;
 
@@ -187,12 +195,19 @@ export const use_subscription_store = create<SubscriptionStore>()((set, get) => 
   monthly_budget:  0,
 
   add_subscription: (data) => {
-    const sub_id   = generate_id();
-    const next_date      = data.next_payment_date;
-    const amount         = data.amount;
+    const sub_id     = generate_id();
+    const amount     = data.amount ?? 0;
     const payment_cycle  = data.payment_cycle;
     const has_trial      = data.has_trial ?? false;
     const trial_end_date = data.trial_end_date;
+
+    // Default next_payment_date: 1 miesiąc od dziś
+    const default_next = (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      return format(d, "yyyy-MM-dd");
+    })();
+    const next_date = data.next_payment_date || default_next;
 
     const cycles: BillingCycle[] = [];
 
@@ -450,6 +465,70 @@ export const use_subscription_store = create<SubscriptionStore>()((set, get) => 
   set_budget: (amount) => {
     set({ monthly_budget: amount });
     save_budget(amount);
+  },
+
+  update_from_scrape: (id, data) => {
+    const sub = get().subscriptions.find((s) => s.id === id);
+    if (!sub) return;
+
+    const amount        = data.amount ?? sub.amount;
+    const currency      = (data.currency as Subscription["currency"]) ?? sub.currency;
+    const payment_cycle = (data.payment_cycle as Subscription["payment_cycle"]) ?? sub.payment_cycle;
+    const next_date     = data.next_payment_date;
+    const plan_name     = data.plan_name;
+
+    // Zbuduj nowy cykl rozliczeniowy na podstawie next_payment_date (jeśli jest)
+    let updated_cycles = sub.billing_cycles;
+    if (next_date) {
+      const period_end_d   = parseISO(next_date);
+      const period_start_d = new Date(period_end_d);
+      if (payment_cycle === "yearly") {
+        period_start_d.setFullYear(period_start_d.getFullYear() - 1);
+      } else {
+        period_start_d.setMonth(period_start_d.getMonth() - 1);
+      }
+
+      const scraped_cycle: BillingCycle = {
+        id: generate_id(),
+        subscription_id: sub.id,
+        period_start: format(period_start_d, "yyyy-MM-dd"),
+        period_end: next_date,
+        scheduled_payment_date: next_date,
+        status: "pending",
+        amount_charged: amount,
+        is_trial: false,
+        is_final_after_cancel: false,
+      };
+
+      // Zastąp istniejące cykle oczekujące nowym (lub dodaj jeśli brak)
+      const has_pending = sub.billing_cycles.some((c) => c.status === "pending");
+      if (has_pending) {
+        updated_cycles = sub.billing_cycles.map((c) =>
+          c.status === "pending" ? scraped_cycle : c
+        );
+      } else {
+        updated_cycles = [...sub.billing_cycles, scraped_cycle];
+      }
+    }
+
+    const updated_sub: Subscription = {
+      ...sub,
+      amount,
+      currency,
+      payment_cycle,
+      is_active: true,
+      billing_cycles: updated_cycles,
+      next_payment_date: next_date ?? sub.next_payment_date,
+      description: plan_name
+        ? `[${plan_name}] ${sub.description ?? ""}`.trim()
+        : sub.description,
+    };
+
+    const next = get().subscriptions.map((s) =>
+      s.id === id ? updated_sub : s
+    );
+    set({ subscriptions: next });
+    save_subscriptions(next);
   },
 }));
 
