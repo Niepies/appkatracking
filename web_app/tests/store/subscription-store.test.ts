@@ -46,6 +46,7 @@ function add_netflix() {
   use_subscription_store.getState().add_subscription({
     name: "Netflix",
     amount: 49,
+    currency: "PLN",
     payment_cycle: "monthly",
     category: "entertainment",
     next_payment_date: "2026-06-15",
@@ -85,6 +86,7 @@ describe("add_subscription", () => {
     use_subscription_store.getState().add_subscription({
       name: "Spotify",
       amount: 20,
+      currency: "PLN",
       payment_cycle: "monthly",
       category: "entertainment",
       next_payment_date: "2026-06-01",
@@ -143,6 +145,7 @@ describe("delete_subscription", () => {
     use_subscription_store.getState().add_subscription({
       name: "Spotify",
       amount: 20,
+      currency: "PLN",
       payment_cycle: "monthly",
       category: "entertainment",
       next_payment_date: "2026-07-01",

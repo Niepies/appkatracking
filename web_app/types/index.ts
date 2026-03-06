@@ -2,6 +2,35 @@
 
 export type PaymentCycle = "monthly" | "yearly";
 
+export type Currency =
+  | "PLN"
+  | "USD"
+  | "EUR"
+  | "GBP"
+  | "CHF"
+  | "CZK"
+  | "NOK"
+  | "SEK"
+  | "DKK"
+  | "JPY"
+  | "CAD"
+  | "AUD";
+
+export const CURRENCY_OPTIONS: { value: Currency; label: string; symbol: string }[] = [
+  { value: "PLN", label: "PLN – złoty",              symbol: "zł"  },
+  { value: "USD", label: "USD – dolar amer.",         symbol: "$"   },
+  { value: "EUR", label: "EUR – euro",                symbol: "€"   },
+  { value: "GBP", label: "GBP – funt szterling",      symbol: "£"   },
+  { value: "CHF", label: "CHF – frank szwajcarski",   symbol: "CHF" },
+  { value: "CZK", label: "CZK – korona czeska",       symbol: "Kč"  },
+  { value: "NOK", label: "NOK – korona norweska",     symbol: "kr"  },
+  { value: "SEK", label: "SEK – korona szwedzka",     symbol: "kr"  },
+  { value: "DKK", label: "DKK – korona duńska",       symbol: "kr"  },
+  { value: "JPY", label: "JPY – jen japoński",        symbol: "¥"   },
+  { value: "CAD", label: "CAD – dolar kanadyjski",    symbol: "CA$" },
+  { value: "AUD", label: "AUD – dolar australijski",  symbol: "A$"  },
+];
+
 export type SubscriptionCategory =
   | "entertainment"
   | "utilities"
@@ -43,7 +72,8 @@ export interface BillingCycle {
 export interface Subscription {
   id: string;
   name: string;
-  amount: number; // kwota w PLN – bazowa cena cyklu
+  amount: number; // kwota w wybranej walucie – bazowa cena cyklu
+  currency: Currency;  // waluta subskrypcji (domyślnie PLN)
   payment_cycle: PaymentCycle;
   category: SubscriptionCategory;
   is_active: boolean;

@@ -89,6 +89,10 @@ export function SubscriptionDetailModal({
   const days        = days_until_payment(next_payment);
   const accent_color = subscription.color || "#3b82f6";
 
+  // Dane logowania: null = nieznany, true = ma, false = brak
+  // Feature niezaimplementowany – domyślnie null (ukrywa ostrzeżenia)
+  const has_credentials: boolean | null = null;
+
   const handle_pay = () => {
     set_is_paying(true);
     setTimeout(() => {
@@ -251,17 +255,17 @@ export function SubscriptionDetailModal({
                 <div>
                   <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">Kwota</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {format_currency(subscription.amount)}
+                    {format_currency(subscription.amount, subscription.currency ?? "PLN")}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">{CYCLE_LABELS[subscription.payment_cycle]}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400 dark:text-gray-500">Miesięcznie</p>
                   <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
-                    {format_currency(to_monthly_amount(subscription.amount, subscription.payment_cycle))}
+                    {format_currency(to_monthly_amount(subscription.amount, subscription.payment_cycle), subscription.currency ?? "PLN")}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Rocznie: {format_currency(to_yearly_amount(subscription.amount, subscription.payment_cycle))}
+                    Rocznie: {format_currency(to_yearly_amount(subscription.amount, subscription.payment_cycle), subscription.currency ?? "PLN")}
                   </p>
                 </div>
               </div>
@@ -431,7 +435,7 @@ export function SubscriptionDetailModal({
                             </div>
                           </div>
                           <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex-shrink-0">
-                            {cycle.is_trial ? "Trial" : format_currency(cycle.amount_charged)}
+                            {cycle.is_trial ? "Trial" : format_currency(cycle.amount_charged, subscription.currency ?? "PLN")}
                           </span>
                         </div>
                       );

@@ -5,6 +5,8 @@ import { z } from "zod";
 const today = new Date();
 today.setHours(0, 0, 0, 0);
 
+const CURRENCIES = ["PLN", "USD", "EUR", "GBP", "CHF", "CZK", "NOK", "SEK", "DKK", "JPY", "CAD", "AUD"] as const;
+
 /**
  * Schema dla formularza dodawania/edycji subskrypcji
  */
@@ -21,6 +23,8 @@ export const subscription_schema = z
       .refine((val) => !isNaN(Number(val)), "Kwota musi być liczbą")
       .refine((val) => Number(val) > 0, "Kwota musi być większa od 0")
       .refine((val) => Number(val) <= 100000, "Kwota wydaje się zbyt duża"),
+
+    currency: z.enum(CURRENCIES, { message: "Wybierz walutę" }),
 
     payment_cycle: z.enum(["monthly", "yearly"] as const, {
       message: "Wybierz cykl płatności",

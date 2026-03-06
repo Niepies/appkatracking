@@ -25,7 +25,7 @@ import {
 import { use_subscription_store } from "@/store/subscription-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ChevronRight, Power, ExternalLink } from "lucide-react";
+import { CheckCircle2, ChevronRight, Power, ExternalLink, LogIn, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { get_service_urls } from "@/lib/service-urls";
 
@@ -63,6 +63,10 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
 
   // Kolor akcentu z danych subskrypcji lub domyślny niebieski
   const accent_color = subscription.color || "#3b82f6";
+
+  // Dane logowania: null = nieznany, true = ma, false = brak
+  // Feature niezaimplementowany – domyślnie null (ukrywa badge/przyciski logowania)
+  const has_credentials: boolean | null = null;
 
   const handle_pay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -132,11 +136,11 @@ export function SubscriptionCard({ subscription, on_click }: SubscriptionCardPro
               {/* Kwota */}
               <div className="text-right flex-shrink-0">
                 <p className="font-bold text-gray-900 dark:text-gray-100 text-base">
-                  {format_currency(subscription.amount)}
+                  {format_currency(subscription.amount, subscription.currency ?? "PLN")}
                 </p>
                 {subscription.payment_cycle === "yearly" && (
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    {format_currency(to_monthly_amount(subscription.amount, "yearly"))}/mies.
+                    {format_currency(to_monthly_amount(subscription.amount, "yearly"), subscription.currency ?? "PLN")}/mies.
                   </p>
                 )}
               </div>

@@ -17,8 +17,8 @@ import {
 } from "recharts";
 import { use_subscription_store } from "@/store/subscription-store";
 import {
+  calculate_totals_by_currency,
   calculate_total_monthly,
-  calculate_total_yearly,
   format_currency,
   get_monthly_trend,
   get_category_breakdown,
@@ -62,8 +62,10 @@ export function StatsClient() {
 
   if (!mounted) return null;
 
-  const monthly_total = calculate_total_monthly(subscriptions);
-  const yearly_total  = calculate_total_yearly(subscriptions);
+  const totals_by_currency = calculate_totals_by_currency(subscriptions);
+  const currencies = Object.keys(totals_by_currency);
+  // Budget is tracked in PLN only
+  const monthly_total = totals_by_currency["PLN"]?.monthly ?? calculate_total_monthly(subscriptions);
   const active_count  = subscriptions.filter((s) => s.is_active).length;
 
   const trend_data    = get_monthly_trend(payment_history, 6);
@@ -81,7 +83,7 @@ export function StatsClient() {
     use_subscription_store.getState().set_budget(val);
     set_editing_budget(false);
     set_budget_input("");
-    toast.success(`Budżet miesięczny: ${format_currency(val)}`);
+    toast.success(`Budżet miesięczny: ${format_currency(val, "PLN")}`);
   };
 
   const top_subs = [...subscriptions]
@@ -121,19 +123,37 @@ export function StatsClient() {
 
         {/* Kluczowe metryki */}
         <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Aktywne",    value: String(active_count),          sub: "subskrypcje" },
-            { label: "Miesięcznie", value: format_currency(monthly_total), sub: "łącznie" },
-            { label: "Rocznie",    value: format_currency(yearly_total),  sub: "szacunek" },
-          ].map((m) => (
-            <div
-              key={m.label}
-              className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 text-center"
-            >
-              <p className="font-bold text-gray-900 dark:text-gray-100 text-base leading-tight">{m.value}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{m.label}</p>
-            </div>
-          ))}
+          {/* Aktywne */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 text-center">
+            <p className="font-bold text-gray-900 dark:text-gray-100 text-base leading-tight">{active_count}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Aktywne</p>
+          </div>
+          {/* Miesięcznie per waluta */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 text-center">
+            {currencies.length === 0 ? (
+              <p className="font-bold text-gray-900 dark:text-gray-100 text-base leading-tight">—</p>
+            ) : (
+              currencies.map((cur) => (
+                <p key={cur} className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight">
+                  {format_currency(totals_by_currency[cur].monthly, cur)}
+                </p>
+              ))
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Miesięcznie</p>
+          </div>
+          {/* Rocznie per waluta */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 text-center">
+            {currencies.length === 0 ? (
+              <p className="font-bold text-gray-900 dark:text-gray-100 text-base leading-tight">—</p>
+            ) : (
+              currencies.map((cur) => (
+                <p key={cur} className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight">
+                  {format_currency(totals_by_currency[cur].yearly, cur)}
+                </p>
+              ))
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Rocznie</p>
+          </div>
         </div>
 
         {/* Budżet miesięczny */}
@@ -198,6 +218,11 @@ export function StatsClient() {
 
           {monthly_budget > 0 ? (
             <>
+              {currencies.length > 1 && (
+                <p className="text-xs text-amber-500 dark:text-amber-400 mb-2">
+                  Budżet dotyczy tylko subskrypcji w PLN.
+                </p>
+              )}
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className={cn(
                   "font-semibold",
@@ -205,10 +230,10 @@ export function StatsClient() {
                     ? "text-red-600 dark:text-red-400"
                     : "text-gray-800 dark:text-gray-200"
                 )}>
-                  {format_currency(monthly_total)}
+                  {format_currency(monthly_total, "PLN")}
                 </span>
                 <span className="text-gray-400 dark:text-gray-500 text-xs">
-                  limit: {format_currency(monthly_budget)}
+                  limit: {format_currency(monthly_budget, "PLN")}
                 </span>
               </div>
               <div className="h-3 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
@@ -231,8 +256,8 @@ export function StatsClient() {
                   : "text-gray-400 dark:text-gray-500"
               )}>
                 {budget_over
-                  ? `⚠ Przekroczono o ${format_currency(monthly_total - monthly_budget)}`
-                  : `Pozostało ${format_currency(monthly_budget - monthly_total)} · ${(100 - budget_pct).toFixed(0)}% wolne`}
+                  ? `⚠ Przekroczono o ${format_currency(monthly_total - monthly_budget, "PLN")}`
+                  : `Pozostało ${format_currency(monthly_budget - monthly_total, "PLN")} · ${(100 - budget_pct).toFixed(0)}% wolne`}
               </p>
             </>
           ) : (
@@ -377,7 +402,7 @@ export function StatsClient() {
                           {sub.name}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
-                          {format_currency(monthly)}/mies.
+                          {format_currency(monthly, sub.currency ?? "PLN")}/mies.
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700">

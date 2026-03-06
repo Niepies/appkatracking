@@ -64,6 +64,7 @@ function make_sub(overrides: Partial<Subscription> = {}): Subscription {
     id: "s1",
     name: "Netflix",
     amount: 49,
+    currency: "PLN",
     payment_cycle: "monthly",
     category: "entertainment",
     is_active: true,

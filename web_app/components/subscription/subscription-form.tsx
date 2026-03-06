@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { subscription_schema, type SubscriptionSchemaType } from "@/lib/validators";
 import { use_subscription_store } from "@/store/subscription-store";
-import { CATEGORY_LABELS, CYCLE_LABELS, POPULAR_SERVICES, type Subscription } from "@/types";
+import { CATEGORY_LABELS, CURRENCY_OPTIONS, CYCLE_LABELS, POPULAR_SERVICES, type Subscription } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Input,
@@ -51,6 +51,7 @@ export function SubscriptionForm({
     defaultValues: {
       name: subscription?.name ?? "",
       amount: subscription?.amount?.toString() ?? "",
+      currency: subscription?.currency ?? "PLN",
       payment_cycle: subscription?.payment_cycle ?? "monthly",
       // Dla nowej miesięcznej subskrypcji next_payment_date jest obliczana
       // reaktywnie przez useEffect – tu podajemy placeholder (zastąpi go efekt)
@@ -116,6 +117,7 @@ export function SubscriptionForm({
       update_subscription(subscription.id, {
         name: data.name,
         amount: Number(data.amount),
+        currency: data.currency,
         payment_cycle: data.payment_cycle,
         category: data.category,
         description: data.description,
@@ -125,6 +127,7 @@ export function SubscriptionForm({
       add_subscription({
         name: data.name,
         amount: Number(data.amount),
+        currency: data.currency,
         payment_cycle: data.payment_cycle,
         next_payment_date: data.next_payment_date,
         has_trial: data.has_trial,
@@ -204,19 +207,37 @@ export function SubscriptionForm({
         </div>
       </div>
 
-      {/* Kwota i cykl */}
+      {/* Kwota, waluta i cykl */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="amount">Kwota (PLN) *</Label>
-          <Input
-            id="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="np. 49.99"
-            {...register("amount")}
-            error={errors.amount?.message}
-          />
+          <Label htmlFor="amount">Kwota *</Label>
+          <div className="flex gap-1.5">
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="np. 49.99"
+              {...register("amount")}
+              error={errors.amount?.message}
+              className="flex-1 min-w-0"
+            />
+            <Select
+              defaultValue={subscription?.currency ?? "PLN"}
+              onValueChange={(val) => setValue("currency", val as SubscriptionSchemaType["currency"])}
+            >
+              <SelectTrigger className="w-20 flex-shrink-0 px-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCY_OPTIONS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label>Cykl płatności *</Label>

@@ -62,14 +62,34 @@ export function normalize_service_key(name: string): string {
 }
 
 /**
- * Formatuje kwotę jako PLN
+ * Formatuje kwotę w podanej walucie
  */
-export function format_currency(amount: number): string {
-  return new Intl.NumberFormat("pl-PL", {
+export function format_currency(amount: number, currency: string = "PLN"): string {
+  const locale = currency === "PLN" ? "pl-PL" : "en-US";
+  return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "PLN",
+    currency,
     minimumFractionDigits: 2,
   }).format(amount);
+}
+
+/**
+ * Oblicza łączne wydatki miesięczne/roczne pogrupowane po walucie.
+ * Zwraca obiekt { waluta: { monthly, yearly } } tylko dla aktywnych subskrypcji.
+ */
+export function calculate_totals_by_currency(
+  subscriptions: Subscription[]
+): Record<string, { monthly: number; yearly: number }> {
+  const result: Record<string, { monthly: number; yearly: number }> = {};
+  subscriptions
+    .filter((s) => s.is_active)
+    .forEach((s) => {
+      const cur = s.currency ?? "PLN";
+      if (!result[cur]) result[cur] = { monthly: 0, yearly: 0 };
+      result[cur].monthly += to_monthly_amount(s.amount, s.payment_cycle);
+      result[cur].yearly  += to_yearly_amount(s.amount, s.payment_cycle);
+    });
+  return result;
 }
 
 /**

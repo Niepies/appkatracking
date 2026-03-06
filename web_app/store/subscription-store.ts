@@ -47,6 +47,10 @@ export function save_subscriptions(subscriptions: Subscription[]) {
  */
 function migrate_subscription(raw: Record<string, unknown>): Subscription {
   const sub = raw as unknown as Subscription;
+  // Backfill currency for legacy records without it
+  if (!sub.currency) {
+    (sub as Subscription).currency = "PLN";
+  }
   if (sub.billing_cycles && sub.billing_cycles.length > 0) return sub;
 
   // Stare pole next_payment_date jako baza
@@ -238,6 +242,7 @@ export const use_subscription_store = create<SubscriptionStore>()((set, get) => 
       description:    data.description,
       logo_url:       data.logo_url,
       amount,
+      currency:       data.currency ?? "PLN",
       payment_cycle,
       id:             sub_id,
       is_active:      true,

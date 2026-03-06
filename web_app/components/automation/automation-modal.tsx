@@ -99,9 +99,6 @@ export function AutomationModal({
     on_close();
   };
 
-  // alias dla czytelności JSX
-  const handle_save_and_run = handle_run;
-
   const handle_run = async () => {
     if (!email.trim() || !password.trim()) {
       toast.error("Podaj e-mail i hasło.");
@@ -118,6 +115,9 @@ export function AutomationModal({
       password,
     );
   };
+
+  // alias dla czytelności JSX
+  const handle_save_and_run = handle_run;
 
   const action_label = action === "cancel" ? "Anuluj" : "Wznów";
   const action_label_ing = action === "cancel" ? "Anulowanie" : "Wznawianie";
