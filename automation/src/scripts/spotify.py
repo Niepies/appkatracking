@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 
 from src.scripts.base_automation import BaseAutomation, AutomationError
 from src.types import AutomationAction
-from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency
+from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency, _get_spa_innertext
 
 
 class SpotifyAutomation(BaseAutomation):
@@ -147,8 +147,11 @@ class SpotifyAutomation(BaseAutomation):
         }
 
         try:
+            # Spotify to SPA – konieczny innerText zamiast page_source
+            inner_text = _get_spa_innertext(driver, extra_wait=1)
             page = driver.page_source
-            page_lower = page.lower()
+            search_text = inner_text if inner_text.strip() else page
+            page_lower = search_text.lower()
 
             # ── Nazwa planu ──────────────────────────────────────────
             plan_selectors = [
@@ -175,7 +178,7 @@ class SpotifyAutomation(BaseAutomation):
                         break
 
             # ── Kwota i waluta ───────────────────────────────────────
-            amount, currency = _extract_amount_and_currency(page)
+            amount, currency = _extract_amount_and_currency(search_text)
             if amount is not None:
                 result["amount"] = amount
             if currency is not None:
@@ -184,10 +187,13 @@ class SpotifyAutomation(BaseAutomation):
             # ── Data następnej płatności ─────────────────────────────
             date_selectors = [
                 "[data-testid='next-payment-date']",
+                "[data-testid='renewal-date']",
                 "[class*='next-payment']",
                 "[class*='nextPayment']",
                 "[class*='renewal-date']",
                 "[class*='renewalDate']",
+                "[class*='next-renewal']",
+                "[class*='billing-date']",
             ]
             for sel in date_selectors:
                 try:
@@ -200,18 +206,26 @@ class SpotifyAutomation(BaseAutomation):
                     pass
 
             if not result["next_payment_date"]:
-                # Szukaj wzorców "next payment on" / "następna płatność"
+                # Szukaj wzorców w wyrenderowanym tekście
                 date_m = re.search(
-                    r"(?:next payment[:\s]+|następna płatność[:\s]+|odnowienie[:\s]+)"
+                    r"(?:next payment[:\s]+|następna płatność[:\s]+|odnowienie[:\s]+|your next payment is due[:\s]+)"
                     r"(\d{1,2}[./\s]\w+[./\s]20\d{2}|\d{4}-\d{2}-\d{2}|"
                     r"\w+ \d{1,2},? 20\d{2}|\d{1,2} \w+ 20\d{2})",
-                    page, re.IGNORECASE,
+                    search_text, re.IGNORECASE,
                 )
                 if date_m:
                     result["next_payment_date"] = (
                         _parse_date_str(date_m.group(1))
                         or _parse_polish_date(date_m.group(1))
                     )
+
+            if not result["next_payment_date"]:
+                pol_m = re.search(
+                    r"(\d{1,2})\s+(stycz|luty|lute|marc|kwiet|kwi|maj|czerw|cze|lip|sierp|wrze|paźdz|paz|list|grud)\w*\s+(20\d{2})",
+                    search_text, re.IGNORECASE,
+                )
+                if pol_m:
+                    result["next_payment_date"] = _parse_polish_date(pol_m.group(0))
 
             result["raw_info"] = f"Pobrano z: {driver.current_url}"
         except Exception as exc:

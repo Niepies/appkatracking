@@ -13,7 +13,7 @@ from selenium.webdriver.common.by import By
 
 from src.scripts.base_automation import BaseAutomation, AutomationError
 from src.types import AutomationAction
-from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency
+from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency, _get_spa_innertext
 
 
 class NetflixAutomation(BaseAutomation):
@@ -134,8 +134,13 @@ class NetflixAutomation(BaseAutomation):
         }
 
         try:
+            # innerText = wyrenderowany tekst (działa dla React/SPA)
+            # page_source = surowy HTML szkielet (fallback dla SSR)
+            inner_text = _get_spa_innertext(driver)
             page = driver.page_source
-            page_lower = page.lower()
+            # Preferuj innerText do regex-ów; page dla CSS selektorów
+            search_text = inner_text if inner_text.strip() else page
+            page_lower = search_text.lower()
 
             # ── Nazwa planu ──────────────────────────────────────────
             plan_selectors = [
@@ -162,19 +167,21 @@ class NetflixAutomation(BaseAutomation):
                         break
 
             # ── Kwota i waluta ───────────────────────────────────────
-            amount, currency = _extract_amount_and_currency(page)
+            amount, currency = _extract_amount_and_currency(search_text)
             if amount is not None:
                 result["amount"] = amount
             if currency is not None:
                 result["currency"] = currency
 
-            # ── Data następní płatności ─────────────────────────────
+            # ── Data następnej płatności ─────────────────────────────
             date_selectors = [
                 "[data-uia='next-billing-date']",
                 "[data-uia='billing-date']",
                 "[class*='nextBillingDate']",
                 "[class*='billing-date']",
                 "[class*='next-billing']",
+                "[class*='membershipBillingDate']",
+                "[class*='billing_date']",
             ]
             for sel in date_selectors:
                 try:
@@ -187,12 +194,25 @@ class NetflixAutomation(BaseAutomation):
                     pass
 
             if not result["next_payment_date"]:
+                # Szukaj w regex na wyrenderowanym tekście
                 date_m = re.search(
-                    r"(\d{1,2})\s+(stycz|luty|marc|kwie|maj|czerw|lip|sierp|wrze|paźdz|list|grud)\w*\s+(20\d{2})",
-                    page, re.IGNORECASE
+                    r"(?:next billing|billing date|następna płatność|odnowienie)[:\s]*(\d{1,2}[./\s]\w+[./\s]20\d{2}|\d{4}-\d{2}-\d{2}|\w+\s+\d{1,2},?\s+20\d{2}|\d{1,2}\s+\w+\s+20\d{2})",
+                    search_text, re.IGNORECASE
                 )
                 if date_m:
-                    result["next_payment_date"] = _parse_polish_date(date_m.group(0))
+                    result["next_payment_date"] = (
+                        _parse_date_str(date_m.group(1))
+                        or _parse_polish_date(date_m.group(1))
+                    )
+
+            if not result["next_payment_date"]:
+                # Polska data "13 marca 2026" w dowolnym miejscu
+                pol_m = re.search(
+                    r"(\d{1,2})\s+(stycz|luty|lute|marc|kwiet|kwi|maj|czerw|cze|lip|sierp|wrze|paźdz|paz|list|grud)\w*\s+(20\d{2})",
+                    search_text, re.IGNORECASE
+                )
+                if pol_m:
+                    result["next_payment_date"] = _parse_polish_date(pol_m.group(0))
 
             result["raw_info"] = f"Pobrano z: {driver.current_url}"
         except Exception as exc:

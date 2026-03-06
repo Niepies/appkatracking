@@ -159,41 +159,62 @@ def _parse_polish_date(text: str) -> str | None:
 
 def _extract_amount_and_currency(text: str) -> tuple[float | None, str | None]:
     """
-    Wyciąga kwotę i walutę z tekstu.
+    Wyciąga kwotę i walutę z tekstu (page_source lub innerText).
     Zwraca (amount, currency_code) lub (None, None) jeśli nie znaleziono.
     """
     currency_map = {
         "PLN": "PLN", "zł": "PLN", "zl": "PLN",
-        "USD": "USD", "$": "USD",
+        "USD": "USD", "$": "USD", "US$": "USD",
         "EUR": "EUR", "€": "EUR",
         "GBP": "GBP", "£": "GBP",
         "CHF": "CHF",
+        "CAD": "CAD", "C$": "CAD",
+        "AUD": "AUD", "A$": "AUD",
     }
 
+    # Najdokładniejsze wzorce najpierw (z walutą po obu stronach)
     patterns = [
-        r"(\d+[,.]\d{2})\s*(PLN|zł|USD|EUR|GBP|CHF)",
-        r"(PLN|USD|EUR|GBP|CHF|\$|€|£)\s*(\d+[,.]\d{2})",
-        r"(\d+[,.]\d{2})\s*/\s*(?:miesi|month|mo)",
-        r"(\d+)\s*(PLN|zł|USD|EUR|GBP|CHF)\b",
+        # Kwota z walutą po prawej: "29,99 zł" / "15.49 USD" / "9.99 €"
+        r"(\d{1,4}[,.]\d{2})\s*(?:PLN|zł|zl|USD|EUR|GBP|CHF|CAD|AUD)",
+        # Waluta przed kwotą: "$15.49" / "€9.99" / "US$15.49"
+        r"(?:US\$|C\$|A\$|\$|€|£|PLN|USD|EUR|GBP|CHF)\s*(\d{1,4}[,.]\d{2})",
+        # Kwota z walutą + /miesiąc: "29,99 zł/mies." / "$15.99/month"
+        r"(\d{1,4}[,.]\d{2})\s*(?:PLN|zł|zl|USD|EUR|GBP|CHF|CAD|AUD|\$|€|£)?\s*/\s*(?:miesi|month|mo\b|rok|year|yr\b|ann)",
+        # Całkowite kwoty bez groszy: "29 zł" / "15 USD"
+        r"(\d{1,4})\s*(?:PLN|zł|USD|EUR|GBP|CHF)\b",
+        # Format HTML/JSON z encją: "29,99&nbsp;zł" / "29.99&#160;PLN"
+        r"(\d{1,4}[,.]\d{2})(?:&nbsp;|&#160;|\\u00a0|\xa0)\s*(?:PLN|zł|USD|EUR|GBP|CHF)",
     ]
 
     for pattern in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
         if m:
-            # Znajdź grupę z liczbą
+            # Wyciągnij pierwszą grupę liczbową
+            num_str = None
             for g in m.groups():
                 if g and re.match(r"^\d+[,.]?\d*$", g):
-                    try:
-                        amount = float(g.replace(",", "."))
-                        # Znajdź walutę w dopasowaniu
-                        full = m.group(0)
-                        currency = None
-                        for sym, code in currency_map.items():
-                            if sym in full:
-                                currency = code
-                                break
-                        return amount, currency
-                    except ValueError:
-                        pass
+                    num_str = g
+                    break
+            if num_str is None:
+                # Brak grup – wyciągnij liczbę z całego dopasowania
+                nm = re.search(r"(\d+[,.]\d{2}|\d+)", m.group(0))
+                if nm:
+                    num_str = nm.group(1)
+            if num_str is None:
+                continue
+            try:
+                amount = float(num_str.replace(",", "."))
+                if amount <= 0:
+                    continue
+                # Znajdź walutę w całym dopasowaniu
+                full = m.group(0)
+                currency = None
+                for sym, code in sorted(currency_map.items(), key=lambda x: -len(x[0])):
+                    if sym.lower() in full.lower():
+                        currency = code
+                        break
+                return amount, currency
+            except ValueError:
+                pass
 
     return None, None

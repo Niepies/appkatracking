@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 
 from src.scripts.base_automation import BaseAutomation, AutomationError
 from src.types import AutomationAction
-from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency
+from src.utils.scrape_helpers import _parse_date_str, _parse_polish_date, _extract_amount_and_currency, _get_spa_innertext
 
 
 class DisneyPlusAutomation(BaseAutomation):
@@ -146,8 +146,11 @@ class DisneyPlusAutomation(BaseAutomation):
         }
 
         try:
+            # Disney+ to SPA – konieczny innerText zamiast page_source
+            inner_text = _get_spa_innertext(driver, extra_wait=1)
             page = driver.page_source
-            page_lower = page.lower()
+            search_text = inner_text if inner_text.strip() else page
+            page_lower = search_text.lower()
 
             # ── Nazwa planu ──────────────────────────────────────────
             plan_selectors = [
@@ -173,7 +176,7 @@ class DisneyPlusAutomation(BaseAutomation):
                         break
 
             # ── Kwota i waluta ───────────────────────────────────────
-            amount, currency = _extract_amount_and_currency(page)
+            amount, currency = _extract_amount_and_currency(search_text)
             if amount is not None:
                 result["amount"] = amount
             if currency is not None:
@@ -186,10 +189,12 @@ class DisneyPlusAutomation(BaseAutomation):
             # ── Data następnej płatności ─────────────────────────────
             date_selectors = [
                 "[data-testid='next-billing-date']",
+                "[data-testid='renewal-date']",
                 "[class*='next-billing']",
                 "[class*='nextBilling']",
                 "[class*='renewal-date']",
                 "[class*='billingDate']",
+                "[class*='billing_date']",
             ]
             for sel in date_selectors:
                 try:
@@ -203,16 +208,24 @@ class DisneyPlusAutomation(BaseAutomation):
 
             if not result["next_payment_date"]:
                 date_m = re.search(
-                    r"(?:next billing[:\s]+|renewal date[:\s]+|następna płatność[:\s]+)"
+                    r"(?:next billing[:\s]+|renewal date[:\s]+|następna płatność[:\s]+|your plan renews[:\s]+)"
                     r"(\d{1,2}[./\s]\w+[./\s]20\d{2}|\d{4}-\d{2}-\d{2}|"
                     r"\w+ \d{1,2},? 20\d{2}|\d{1,2} \w+ 20\d{2})",
-                    page, re.IGNORECASE,
+                    search_text, re.IGNORECASE,
                 )
                 if date_m:
                     result["next_payment_date"] = (
                         _parse_date_str(date_m.group(1))
                         or _parse_polish_date(date_m.group(1))
                     )
+
+            if not result["next_payment_date"]:
+                pol_m = re.search(
+                    r"(\d{1,2})\s+(stycz|luty|lute|marc|kwiet|kwi|maj|czerw|cze|lip|sierp|wrze|paźdz|paz|list|grud)\w*\s+(20\d{2})",
+                    search_text, re.IGNORECASE,
+                )
+                if pol_m:
+                    result["next_payment_date"] = _parse_polish_date(pol_m.group(0))
 
             result["raw_info"] = f"Pobrano z: {driver.current_url}"
         except Exception as exc:
@@ -226,7 +239,9 @@ class DisneyPlusAutomation(BaseAutomation):
         """Sprawdza czy Disney+ jest aktywny (płatność przeszła)."""
         driver.get(self._MANAGE_URL)
         self.sleep(2)
-        page = driver.page_source.lower()
+        # Użyj innerText żeby wykryć aktywne sygnały na SPA
+        inner = _get_spa_innertext(driver) or driver.page_source
+        page = inner.lower()
 
         active_signals = ["anuluj", "cancel", "manage", "plan", "subscription"]
         is_active = any(s in page for s in active_signals) and "login" not in driver.current_url.lower()
