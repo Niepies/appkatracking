@@ -37,11 +37,18 @@ cd web_app
 # 2. Zainstaluj zależności
 npm install
 
-# 3. Uruchom serwer deweloperski
+# 3. Skonfiguruj zmienne środowiskowe
+cp .env.example .env.local
+# Edytuj .env.local – uzupełnij AUTOMATION_API_KEY (musi być identyczny jak w automation/.env)
+
+# 4. Uruchom serwer deweloperski
 npm run dev
 
 # Aplikacja dostępna pod: http://localhost:3000
 ```
+
+> **Funkcja automatycznego pobierania danych** wymaga uruchomionego mikroserwisu Python.  
+> Instrukcja: [automation/README.md](../automation/README.md)
 
 ## Struktura projektu
 

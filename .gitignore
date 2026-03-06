@@ -24,7 +24,8 @@ build/
 venv/
 env/
 .env
-.env.*
+.env.local
+.env.*.local
 
 # ── Automation – dane wrażliwe ────────────────────────────────────────────────
 automation/data/
